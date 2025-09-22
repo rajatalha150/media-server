@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  media-server:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=mediaserver
+      - DB_USER=mediauser
+      - DB_PASSWORD=mediapass123
+    volumes:
+      - ./media:/app/media
+      - ./thumbnails:/app/thumbnails
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=mediaserver
+      - POSTGRES_USER=mediauser
+      - POSTGRES_PASSWORD=mediapass123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

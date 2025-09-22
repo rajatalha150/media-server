@@ -1,0 +1,128 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { FaTimes, FaPlay, FaPause, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+
+const MediaViewer = ({ 
+  media, 
+  onClose, 
+  slideshowActive, 
+  slideshowInterval, 
+  onToggleSlideshow 
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(media.index);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
+  const currentMedia = media.allFiles[currentIndex];
+
+  const nextMedia = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % media.allFiles.length);
+  }, [media.allFiles.length]);
+
+  const prevMedia = useCallback(() => {
+    setCurrentIndex((prev) => (prev - 1 + media.allFiles.length) % media.allFiles.length);
+  }, [media.allFiles.length]);
+
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      switch (e.key) {
+        case 'Escape':
+          onClose();
+          break;
+        case 'ArrowRight':
+          nextMedia();
+          break;
+        case 'ArrowLeft':
+          prevMedia();
+          break;
+        case ' ':
+          e.preventDefault();
+          onToggleSlideshow();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [onClose, nextMedia, prevMedia, onToggleSlideshow]);
+
+  useEffect(() => {
+    let interval;
+    if (slideshowActive && currentMedia.type === 'image') {
+      interval = setInterval(() => {
+        nextMedia();
+      }, slideshowInterval * 1000);
+    }
+    return () => clearInterval(interval);
+  }, [slideshowActive, slideshowInterval, nextMedia, currentMedia.type]);
+
+  const handleVideoPlay = () => {
+    setIsVideoPlaying(true);
+  };
+
+  const handleVideoPause = () => {
+    setIsVideoPlaying(false);
+  };
+
+  return (
+    <div className="modal" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="close-btn" onClick={onClose}>
+          <FaTimes />
+        </button>
+
+        {currentMedia.type === 'image' ? (
+          <img
+            src={currentMedia.url}
+            alt={currentMedia.name}
+            className="modal-media"
+          />
+        ) : (
+          <video
+            src={currentMedia.url}
+            className="modal-media"
+            controls
+            autoPlay
+            onPlay={handleVideoPlay}
+            onPause={handleVideoPause}
+          />
+        )}
+
+        <div className="modal-controls">
+          <button className="btn" onClick={prevMedia}>
+            <FaChevronLeft /> Previous
+          </button>
+          
+          {currentMedia.type === 'image' && (
+            <button className="btn" onClick={onToggleSlideshow}>
+              {slideshowActive ? <FaPause /> : <FaPlay />}
+              {slideshowActive ? 'Pause' : 'Slideshow'}
+            </button>
+          )}
+          
+          <button className="btn" onClick={nextMedia}>
+            Next <FaChevronRight />
+          </button>
+        </div>
+
+        <div style={{
+          position: 'absolute',
+          bottom: '-100px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          color: '#ccc',
+          textAlign: 'center',
+          fontSize: '0.9rem'
+        }}>
+          <div>{currentMedia.name}</div>
+          <div>{currentIndex + 1} of {media.allFiles.length}</div>
+          {slideshowActive && currentMedia.type === 'image' && (
+            <div>Slideshow: {slideshowInterval}s intervals</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MediaViewer;
