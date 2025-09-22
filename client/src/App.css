@@ -128,6 +128,16 @@
   box-shadow: 0 8px 25px rgba(0, 123, 255, 0.3);
 }
 
+.media-item.selected {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.media-item:hover .delete-btn {
+  opacity: 1 !important;
+}
+
 .media-thumbnail {
   width: 100%;
   height: 150px;

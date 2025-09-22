@@ -47,6 +47,7 @@ async function ensureDirectories() {
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const folderPath = req.body.folderPath || '';
+    console.log('Upload to folder:', folderPath);
     const uploadPath = path.join(MEDIA_DIR, folderPath);
     await fs.mkdir(uploadPath, { recursive: true });
     cb(null, uploadPath);
@@ -153,6 +154,66 @@ app.post('/api/upload', authenticate, upload.array('files'), async (req, res) =>
       url: `/media/${path.relative(MEDIA_DIR, file.path).replace(/\\/g, '/')}`
     }));
     res.json({ success: true, files });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete single file
+app.delete('/api/files', authenticate, async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    const fullPath = path.join(MEDIA_DIR, filePath);
+    await fs.unlink(fullPath);
+    res.json({ success: true, message: 'File deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete multiple files
+app.delete('/api/files/bulk', authenticate, async (req, res) => {
+  try {
+    const { filePaths } = req.body;
+    const results = [];
+
+    for (const filePath of filePaths) {
+      try {
+        const fullPath = path.join(MEDIA_DIR, filePath);
+        await fs.unlink(fullPath);
+        results.push({ path: filePath, success: true });
+      } catch (error) {
+        results.push({ path: filePath, success: false, error: error.message });
+      }
+    }
+
+    res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete all files in current folder
+app.delete('/api/files/all', authenticate, async (req, res) => {
+  try {
+    const { folderPath = '' } = req.body;
+    const fullPath = path.join(MEDIA_DIR, folderPath);
+    const items = await fs.readdir(fullPath, { withFileTypes: true });
+
+    const results = [];
+    for (const item of items) {
+      if (item.isFile()) {
+        try {
+          const filePath = path.join(fullPath, item.name);
+          await fs.unlink(filePath);
+          results.push({ name: item.name, success: true });
+        } catch (error) {
+          results.push({ name: item.name, success: false, error: error.message });
+        }
+      }
+    }
+
+    res.json({ success: true, results, deletedCount: results.filter(r => r.success).length });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

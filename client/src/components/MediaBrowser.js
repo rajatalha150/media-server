@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
-import { FaFolder, FaImage, FaVideo, FaPlay, FaPause, FaUpload, FaPlus, FaSignOutAlt, FaTimes } from 'react-icons/fa';
+import { FaFolder, FaImage, FaVideo, FaPlay, FaPause, FaUpload, FaPlus, FaSignOutAlt, FaTimes, FaTrash, FaCheck, FaCheckSquare } from 'react-icons/fa';
 import MediaViewer from './MediaViewer';
 import SlideshowControls from './SlideshowControls';
 
@@ -15,6 +15,8 @@ const MediaBrowser = ({ onLogout }) => {
   const [slideshowInterval, setSlideshowInterval] = useState(5);
   const [newFolderName, setNewFolderName] = useState('');
   const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
 
   const loadContent = useCallback(async (path = '') => {
     setLoading(true);
@@ -98,6 +100,79 @@ const MediaBrowser = ({ onLogout }) => {
     setSlideshowActive(!slideshowActive);
   };
 
+  const deleteFile = async (filePath) => {
+    if (!window.confirm('Are you sure you want to delete this file?')) return;
+
+    try {
+      await axios.delete('/api/files', {
+        data: { filePath },
+        headers: { Authorization: `Bearer 2536` }
+      });
+      loadContent(currentPath);
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete file');
+    }
+  };
+
+  const deleteSelectedFiles = async () => {
+    if (selectedFiles.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedFiles.length} selected files?`)) return;
+
+    try {
+      await axios.delete('/api/files/bulk', {
+        data: { filePaths: selectedFiles },
+        headers: { Authorization: `Bearer 2536` }
+      });
+      setSelectedFiles([]);
+      setSelectionMode(false);
+      loadContent(currentPath);
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      alert('Failed to delete selected files');
+    }
+  };
+
+  const deleteAllFiles = async () => {
+    if (files.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ALL ${files.length} files in this folder?`)) return;
+
+    try {
+      await axios.delete('/api/files/all', {
+        data: { folderPath: currentPath },
+        headers: { Authorization: `Bearer 2536` }
+      });
+      loadContent(currentPath);
+    } catch (error) {
+      console.error('Delete all error:', error);
+      alert('Failed to delete all files');
+    }
+  };
+
+  const toggleSelection = (filePath) => {
+    setSelectedFiles(prev =>
+      prev.includes(filePath)
+        ? prev.filter(path => path !== filePath)
+        : [...prev, filePath]
+    );
+  };
+
+  const selectAllFiles = () => {
+    setSelectedFiles(files.map(file => file.path));
+  };
+
+  const clearSelection = () => {
+    setSelectedFiles([]);
+  };
+
+  const handleFileClick = (file, index) => {
+    if (selectionMode) {
+      toggleSelection(file.path);
+    } else {
+      openMedia(file, index);
+    }
+  };
+
   const pathParts = currentPath ? currentPath.split('/') : [];
 
   if (loading) {
@@ -116,6 +191,41 @@ const MediaBrowser = ({ onLogout }) => {
           <button className="btn" onClick={() => setShowCreateFolder(!showCreateFolder)}>
             <FaPlus /> New Folder
           </button>
+
+          {files.length > 0 && (
+            <>
+              <button
+                className={`btn ${selectionMode ? 'btn-secondary' : ''}`}
+                onClick={() => {
+                  setSelectionMode(!selectionMode);
+                  setSelectedFiles([]);
+                }}
+              >
+                <FaCheck /> {selectionMode ? 'Cancel' : 'Select'}
+              </button>
+
+              {selectionMode && (
+                <>
+                  <button className="btn btn-secondary" onClick={selectAllFiles}>
+                    <FaCheckSquare /> Select All
+                  </button>
+                  <button className="btn btn-secondary" onClick={clearSelection}>
+                    Clear
+                  </button>
+                  {selectedFiles.length > 0 && (
+                    <button className="btn btn-danger" onClick={deleteSelectedFiles}>
+                      <FaTrash /> Delete Selected ({selectedFiles.length})
+                    </button>
+                  )}
+                </>
+              )}
+
+              <button className="btn btn-danger" onClick={deleteAllFiles}>
+                <FaTrash /> Delete All
+              </button>
+            </>
+          )}
+
           <button className="btn btn-danger" onClick={onLogout}>
             <FaSignOutAlt /> Logout
           </button>
@@ -189,9 +299,63 @@ const MediaBrowser = ({ onLogout }) => {
         {files.map((file, index) => (
           <div
             key={file.path}
-            className="media-item"
-            onClick={() => openMedia(file, index)}
+            className={`media-item ${selectedFiles.includes(file.path) ? 'selected' : ''}`}
+            onClick={() => handleFileClick(file, index)}
+            style={{ position: 'relative' }}
           >
+            {selectionMode && (
+              <div className="selection-checkbox" style={{
+                position: 'absolute',
+                top: '8px',
+                left: '8px',
+                zIndex: 1,
+                background: selectedFiles.includes(file.path) ? '#007bff' : 'rgba(0,0,0,0.5)',
+                color: 'white',
+                borderRadius: '50%',
+                width: '24px',
+                height: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px'
+              }}>
+                {selectedFiles.includes(file.path) ? '✓' : ''}
+              </div>
+            )}
+
+            {!selectionMode && (
+              <button
+                className="delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deleteFile(file.path);
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  zIndex: 1,
+                  background: 'rgba(220, 53, 69, 0.8)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  opacity: 0,
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.opacity = 1}
+                onMouseLeave={(e) => e.target.style.opacity = 0}
+              >
+                <FaTrash />
+              </button>
+            )}
+
             {file.type === 'image' ? (
               <img
                 src={file.url}
@@ -200,7 +364,7 @@ const MediaBrowser = ({ onLogout }) => {
                 loading="lazy"
               />
             ) : (
-              <div className="media-thumbnail" style={{ 
+              <div className="media-thumbnail" style={{
                 background: 'linear-gradient(135deg, #dc3545, #c82333)',
                 display: 'flex',
                 alignItems: 'center',
