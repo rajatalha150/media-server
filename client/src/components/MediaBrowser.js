@@ -21,7 +21,6 @@ const MediaBrowser = ({ onLogout }) => {
   const [uploadProgress, setUploadProgress] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [uploadNotification, setUploadNotification] = useState('');
-  const [isMobile, setIsMobile] = useState(false);
 
   const loadContent = useCallback(async (path = '') => {
     setLoading(true);
@@ -39,110 +38,10 @@ const MediaBrowser = ({ onLogout }) => {
 
   useEffect(() => {
     loadContent();
-
-    // Detect mobile device
-    const checkMobile = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                           ('ontouchstart' in window) ||
-                           (navigator.maxTouchPoints > 0);
-      setIsMobile(isMobileDevice);
-    };
-
-    checkMobile();
-
-    // Multiple mobile fallback methods for file selection
-    let fileInputRef = null;
-    let mobileCheckInterval = null;
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isMobile) {
-        console.log('🔥 VISIBILITY: Page visible, checking for files');
-        setTimeout(() => {
-          const input = document.getElementById('mobile-file-input');
-          console.log('🔥 VISIBILITY: Input element:', input);
-          console.log('🔥 VISIBILITY: Input files:', input?.files);
-          console.log('🔥 VISIBILITY: Files count:', input?.files?.length || 'NO FILES');
-
-          if (input && input.files && input.files.length > 0) {
-            console.log('🔥 VISIBILITY: Detected files on visibility change, count:', input.files.length);
-            handleMobileFileSelect({ target: input });
-          } else {
-            console.log('🔥 VISIBILITY: No files found during visibility check');
-          }
-        }, 300);
-      }
-    };
-
-    // Aggressive polling method for mobile browsers that don't trigger events properly
-    const startMobilePolling = () => {
-      if (!isMobile) return;
-      console.log('🔥 POLLING: Starting mobile polling');
-
-      mobileCheckInterval = setInterval(() => {
-        const input = document.getElementById('mobile-file-input');
-        console.log('🔥 POLLING: Checking input:', input);
-        console.log('🔥 POLLING: Input files:', input?.files);
-        console.log('🔥 POLLING: Files count:', input?.files?.length || 'NO FILES');
-
-        if (input && input.files && input.files.length > 0) {
-          console.log('🔥 POLLING: Detected files, count:', input.files.length);
-          handleMobileFileSelect({ target: input });
-          clearInterval(mobileCheckInterval);
-        }
-      }, 500);
-
-      // Stop polling after 15 seconds
-      setTimeout(() => {
-        if (mobileCheckInterval) {
-          console.log('🔥 POLLING: Stopping polling after 15 seconds');
-          clearInterval(mobileCheckInterval);
-        }
-      }, 15000);
-    };
-
-    // Enhanced focus/blur detection
-    const handleFocusEvents = () => {
-      setTimeout(() => {
-        const input = document.getElementById('mobile-file-input');
-        if (input && input.files && input.files.length > 0) {
-          console.log('Mobile: Focus event detected files');
-          handleMobileFileSelect({ target: input });
-        }
-      }, 200);
-    };
-
-    if (isMobile) {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('focus', handleVisibilityChange);
-      window.addEventListener('pageshow', handleVisibilityChange);
-      window.addEventListener('blur', handleFocusEvents);
-      startMobilePolling();
-    }
-
-    return () => {
-      if (isMobile) {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('focus', handleVisibilityChange);
-        window.removeEventListener('pageshow', handleVisibilityChange);
-        window.removeEventListener('blur', handleFocusEvents);
-        if (mobileCheckInterval) {
-          clearInterval(mobileCheckInterval);
-        }
-      }
-    };
-  }, [loadContent, isMobile]);
+  }, [loadContent]);
 
   const onDrop = useCallback(async (acceptedFiles) => {
-    console.log('🔥 ONDROP: Function called with files:', acceptedFiles);
-    console.log('🔥 ONDROP: Files count:', acceptedFiles?.length || 'NO FILES');
-    console.log('🔥 ONDROP: File names:', acceptedFiles?.map(f => f.name) || 'NO NAMES');
-
-    if (!acceptedFiles || acceptedFiles.length === 0) {
-      console.log('🔥 ONDROP: No files provided, aborting');
-      return;
-    }
-
-    console.log(`🔥 ONDROP: Starting upload of ${acceptedFiles.length} files`);
+    console.log(`Starting upload of ${acceptedFiles.length} files`);
 
     // Show immediate feedback for mobile users
     setUploadNotification(`📁 Starting upload of ${acceptedFiles.length} files...`);
@@ -157,26 +56,17 @@ const MediaBrowser = ({ onLogout }) => {
       folderPath: currentPath
     }));
 
-    console.log('🔥 ONDROP: Upload items created:', uploadItems);
-
     // Add to queue
-    console.log('🔥 ONDROP: Adding items to upload queue');
-    setUploadQueue(prev => {
-      const newQueue = [...prev, ...uploadItems];
-      console.log('🔥 ONDROP: New queue:', newQueue);
-      return newQueue;
-    });
+    setUploadQueue(prev => [...prev, ...uploadItems]);
 
     // Initialize progress tracking
     const progressInit = {};
     uploadItems.forEach(item => {
       progressInit[item.id] = { progress: 0, status: 'pending' };
     });
-    console.log('🔥 ONDROP: Initializing progress:', progressInit);
     setUploadProgress(prev => ({ ...prev, ...progressInit }));
 
     // Start background processing
-    console.log('🔥 ONDROP: Calling processUploadQueue with:', uploadItems);
     processUploadQueue(uploadItems);
   }, [currentPath]);
 
@@ -311,27 +201,32 @@ const MediaBrowser = ({ onLogout }) => {
   };
 
   const processUploadQueue = async (items) => {
-    console.log('🔥 PROCESS: Starting processUploadQueue with', items.length, 'items');
     setIsUploading(true);
 
     const uploadFile = async (item) => {
-      console.log('🔥 UPLOAD: Starting upload for file:', item.file.name);
+      // iOS Safari file validation - check if file is still valid
+      if (!item.file || item.file.size === undefined) {
+        console.error('iOS: File object neutered for', item.file?.name);
+        setUploadProgress(prev => ({
+          ...prev,
+          [item.id]: { progress: 0, status: 'error' }
+        }));
+        return { success: false, item, error: 'File object neutered by iOS' };
+      }
+
       const formData = new FormData();
       formData.append('files', item.file);
       formData.append('folderPath', item.folderPath);
 
-      console.log('🔥 UPLOAD: FormData created, folder path:', item.folderPath);
-      console.log('🔥 UPLOAD: File size:', item.file.size, 'bytes');
+      console.log('iOS: Uploading file:', item.file.name, 'Size:', item.file.size);
 
       try {
         // Update status to uploading
-        console.log('🔥 UPLOAD: Setting progress to uploading for:', item.id);
         setUploadProgress(prev => ({
           ...prev,
           [item.id]: { progress: 0, status: 'uploading' }
         }));
 
-        console.log('🔥 UPLOAD: Making API call to /api/upload');
         const response = await axios.post('/api/upload', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -339,7 +234,7 @@ const MediaBrowser = ({ onLogout }) => {
           },
           onUploadProgress: (progressEvent) => {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-            console.log('🔥 UPLOAD: Progress for', item.file.name, ':', percentCompleted + '%');
+            console.log('iOS: Upload progress for', item.file.name, ':', percentCompleted + '%');
             setUploadProgress(prev => ({
               ...prev,
               [item.id]: { progress: percentCompleted, status: 'uploading' }
@@ -347,7 +242,7 @@ const MediaBrowser = ({ onLogout }) => {
           }
         });
 
-        console.log('🔥 UPLOAD: API response received:', response.status, response.data);
+        console.log('iOS: Upload successful for', item.file.name);
 
         // Success
         setUploadProgress(prev => ({
@@ -357,10 +252,7 @@ const MediaBrowser = ({ onLogout }) => {
 
         return { success: true, item };
       } catch (error) {
-        console.error('🔥 UPLOAD: Upload failed for', item.file.name, ':', error);
-        console.error('🔥 UPLOAD: Error details:', error.response?.data || error.message);
-        console.error('🔥 UPLOAD: Error status:', error.response?.status);
-
+        console.error(`iOS: Upload failed for ${item.file.name}:`, error);
         setUploadProgress(prev => ({
           ...prev,
           [item.id]: { progress: 0, status: 'error' }
@@ -410,79 +302,118 @@ const MediaBrowser = ({ onLogout }) => {
     setUploadProgress({});
   };
 
-  // Enhanced mobile-specific file handler with extensive debugging
+  // Enhanced iOS Safari file handler with extensive debugging
   const handleMobileFileSelect = (event) => {
-    console.log('🔥 Mobile handleMobileFileSelect triggered, event:', event);
-    console.log('🔥 Event target:', event.target);
-    console.log('🔥 Event target files:', event.target.files);
-    console.log('🔥 Files length:', event.target.files?.length || 'NO FILES');
+    console.log('=== iOS Safari File Handler Called ===');
+    console.log('Event:', event);
+    console.log('Event target:', event.target);
+    console.log('Event target files:', event.target.files);
+    console.log('Files length:', event.target.files?.length || 'NO LENGTH');
+    console.log('User agent:', navigator.userAgent);
+    console.log('Is iOS:', /iPhone|iPad|iPod/.test(navigator.userAgent));
+    console.log('Touch events:', 'ontouchstart' in window);
 
     const files = Array.from(event.target.files || []);
-    console.log('🔥 Converted files array:', files);
-    console.log('🔥 Files array length:', files.length);
+    console.log('Converted files array:', files);
+    console.log('Files array length:', files.length);
 
     if (files.length > 0) {
-      console.log('🔥 MOBILE FILE SELECTION SUCCESS:', files.length, 'files');
-      console.log('🔥 File names:', files.map(f => f.name));
-
-      // Force immediate UI feedback with enhanced mobile notification
-      setUploadNotification(`📱 Mobile Upload Started!\n${files.length} files selected\nStarting upload...`);
-
-      // Force page to return to main view for mobile
-      try {
-        if (document.exitFullscreen) {
-          document.exitFullscreen().catch(() => {});
-        }
-      } catch (e) {
-        console.log('🔥 Fullscreen exit error:', e);
-      }
-
-      // Force focus back to main document
-      window.focus();
-      document.documentElement.focus();
-
-      console.log('🔥 About to call onDrop with files:', files);
-
-      // Trigger upload immediately and also with delay as backup
-      try {
-        onDrop(files);
-        console.log('🔥 onDrop called successfully');
-      } catch (error) {
-        console.error('🔥 onDrop failed:', error);
-      }
-
-      // Backup upload trigger
-      setTimeout(() => {
-        console.log('🔥 Backup upload trigger');
-        try {
-          onDrop(files);
-        } catch (error) {
-          console.error('🔥 Backup onDrop failed:', error);
-        }
-      }, 100);
-
-      // Clear the input so the same files can be selected again
-      event.target.value = '';
-
-      // Force UI updates
-      setTimeout(() => {
-        console.log('🔥 Forcing UI updates');
-        setUploadQueue(prev => {
-          console.log('🔥 Upload queue update, prev:', prev);
-          return [...prev];
+      console.log('=== SUCCESS: Files detected ===');
+      files.forEach((file, index) => {
+        console.log(`File ${index}:`, {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified
         });
+      });
 
-        // Force window to scroll back to app content
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }, 200);
+      // Show immediate feedback
+      setUploadNotification(`📱 iOS Success! Uploading ${files.length} files...`);
 
+      // Start uploads immediately
+      uploadFilesDirectly(files);
+
+      // Clear input
+      event.target.value = '';
     } else {
-      console.log('🔥 MOBILE: No files selected - this is the problem!');
-      console.log('🔥 Event target files was:', event.target.files);
+      console.log('=== FAILURE: No files detected ===');
+      console.log('This is the iOS Safari bug - files were selected but not available');
 
-      // Set error notification
-      setUploadNotification('❌ No files were selected\nPlease try again');
+      setUploadNotification('❌ iOS Safari: No files detected');
       setTimeout(() => setUploadNotification(''), 3000);
+    }
+  };
+
+  // Direct upload without async delays - keep in same execution context
+  const uploadFilesDirectly = (files) => {
+    console.log('Direct: Processing files immediately');
+
+    // Create items synchronously
+    const uploadItems = files.map((file, index) => ({
+      id: `direct-${Date.now()}-${index}`,
+      file: file,
+      status: 'pending',
+      progress: 0,
+      folderPath: currentPath
+    }));
+
+    // Update UI synchronously
+    setUploadQueue(prev => [...prev, ...uploadItems]);
+
+    const progressInit = {};
+    uploadItems.forEach(item => {
+      progressInit[item.id] = { progress: 0, status: 'pending' };
+    });
+    setUploadProgress(prev => ({ ...prev, ...progressInit }));
+
+    // Start each upload immediately
+    uploadItems.forEach(item => {
+      uploadSingleFile(item);
+    });
+  };
+
+  // Direct single file upload
+  const uploadSingleFile = async (item) => {
+    console.log('Direct: Uploading', item.file.name, 'size:', item.file.size);
+
+    const formData = new FormData();
+    formData.append('files', item.file);
+    formData.append('folderPath', item.folderPath);
+
+    try {
+      setUploadProgress(prev => ({
+        ...prev,
+        [item.id]: { progress: 0, status: 'uploading' }
+      }));
+
+      const response = await axios.post('/api/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': 'Bearer 2536'
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(prev => ({
+            ...prev,
+            [item.id]: { progress: percentCompleted, status: 'uploading' }
+          }));
+        }
+      });
+
+      setUploadProgress(prev => ({
+        ...prev,
+        [item.id]: { progress: 100, status: 'completed' }
+      }));
+
+      console.log('Direct: Upload successful for', item.file.name);
+
+    } catch (error) {
+      console.error('Direct: Upload failed for', item.file.name, error);
+      setUploadProgress(prev => ({
+        ...prev,
+        [item.id]: { progress: 0, status: 'error' }
+      }));
     }
   };
 
@@ -615,21 +546,18 @@ const MediaBrowser = ({ onLogout }) => {
       {uploadNotification && (
         <div style={{
           position: 'fixed',
-          top: isMobile ? '50%' : '20px',
+          top: '20px',
           left: '50%',
-          transform: isMobile ? 'translate(-50%, -50%)' : 'translateX(-50%)',
+          transform: 'translateX(-50%)',
           background: '#28a745',
           color: 'white',
-          padding: isMobile ? '2rem' : '1rem 2rem',
-          borderRadius: isMobile ? '12px' : '8px',
-          zIndex: 9999,
-          fontSize: isMobile ? '1.2rem' : '1rem',
+          padding: '1rem 2rem',
+          borderRadius: '8px',
+          zIndex: 1000,
+          fontSize: '1rem',
           fontWeight: 'bold',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          animation: 'slideIn 0.3s ease-out',
-          minWidth: isMobile ? '80vw' : 'auto',
-          textAlign: 'center',
-          whiteSpace: 'pre-line'
+          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          animation: 'slideIn 0.3s ease-out'
         }}>
           {uploadNotification}
         </div>
@@ -642,70 +570,71 @@ const MediaBrowser = ({ onLogout }) => {
         <p>✨ <strong>Bulk Upload:</strong> Select hundreds of files at once!</p>
         <p>Supports: Images (JPG, PNG, GIF, HEIC) and Videos (MP4, AVI, MOV, etc.)</p>
 
-        {/* Mobile-specific upload button with direct handler */}
+        {/* iOS Safari-compatible upload button */}
         <div style={{ marginTop: '1rem' }}>
-          <label htmlFor="mobile-file-input" className="btn" style={{
-            display: 'inline-block',
-            cursor: 'pointer',
-            backgroundColor: '#28a745',
-            border: 'none',
-            padding: '0.75rem 1.5rem',
-            borderRadius: '8px',
-            color: 'white',
-            fontWeight: 'bold'
-          }}>
-            📱 Mobile Upload
-          </label>
           <input
-            id="mobile-file-input"
+            ref={(input) => {
+              if (input) {
+                // Store reference for iOS debugging
+                window.mobileFileInput = input;
+              }
+            }}
             type="file"
             multiple
             accept="image/*,video/*"
             onChange={(e) => {
-              console.log('🔥 DIRECT: Mobile file input onChange triggered');
-              console.log('🔥 DIRECT: Event:', e);
-              console.log('🔥 DIRECT: Files:', e.target.files);
-              handleMobileFileSelect(e);
-            }}
-            onClick={(e) => {
-              console.log('🔥 DIRECT: Mobile file input clicked');
-              // Clear previous files to ensure fresh selection
-              e.target.value = '';
-            }}
-            style={{ display: 'none' }}
-          />
+              console.log('iOS Safari onChange triggered!');
+              console.log('Files detected:', e.target.files?.length || 0);
+              console.log('Event target:', e.target);
+              console.log('Files object:', e.target.files);
 
-          {/* Alternative direct upload button for testing */}
-          <div style={{ marginTop: '0.5rem' }}>
-            <label htmlFor="direct-mobile-input" className="btn" style={{
-              display: 'inline-block',
-              cursor: 'pointer',
-              backgroundColor: '#17a2b8',
-              border: 'none',
-              padding: '0.75rem 1.5rem',
-              borderRadius: '8px',
-              color: 'white',
-              fontWeight: 'bold'
-            }}>
-              🔧 Direct Upload (Test)
-            </label>
-            <input
-              id="direct-mobile-input"
-              type="file"
-              multiple
-              accept="image/*,video/*"
-              onChange={(e) => {
-                console.log('🔥 DIRECT TEST: Files selected:', e.target.files?.length || 0);
-                if (e.target.files && e.target.files.length > 0) {
-                  const filesArray = Array.from(e.target.files);
-                  console.log('🔥 DIRECT TEST: Calling onDrop directly');
-                  onDrop(filesArray);
-                  e.target.value = '';
+              if (e.target.files && e.target.files.length > 0) {
+                console.log('iOS Safari: Processing files immediately');
+                handleMobileFileSelect(e);
+              } else {
+                console.log('iOS Safari: No files in onChange event');
+
+                // iOS Safari fallback - check again after a tiny delay
+                setTimeout(() => {
+                  console.log('iOS Safari fallback check');
+                  console.log('Files after delay:', e.target.files?.length || 0);
+                  if (e.target.files && e.target.files.length > 0) {
+                    console.log('iOS Safari: Found files in fallback');
+                    handleMobileFileSelect(e);
+                  }
+                }, 50);
+              }
+            }}
+            onInput={(e) => {
+              console.log('iOS Safari onInput triggered!');
+              console.log('Input files:', e.target.files?.length || 0);
+              if (e.target.files && e.target.files.length > 0) {
+                handleMobileFileSelect(e);
+              }
+            }}
+            onFocus={() => console.log('iOS Safari: File input focused')}
+            onBlur={() => {
+              console.log('iOS Safari: File input blurred');
+              setTimeout(() => {
+                const input = window.mobileFileInput;
+                if (input && input.files && input.files.length > 0) {
+                  console.log('iOS Safari: Found files on blur');
+                  handleMobileFileSelect({ target: input });
                 }
-              }}
-              style={{ display: 'none' }}
-            />
-          </div>
+              }, 100);
+            }}
+            style={{
+              width: '100%',
+              padding: '1rem',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '1rem',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          />
         </div>
       </div>
 
