@@ -20,6 +20,12 @@ app.use(helmet({
 app.use(cors());
 app.use(express.json());
 
+// Add request logging
+app.use((req, res, next) => {
+  console.log(`🔥 SERVER: ${req.method} ${req.path} - ${new Date().toISOString()}`);
+  next();
+});
+
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -147,14 +153,30 @@ app.post('/api/folders', authenticate, async (req, res) => {
 });
 
 app.post('/api/upload', authenticate, upload.array('files'), async (req, res) => {
+  console.log('🔥 SERVER: Upload endpoint hit!');
+  console.log('🔥 SERVER: Request files:', req.files?.length || 'NO FILES');
+  console.log('🔥 SERVER: Request body:', req.body);
+
   try {
-    const files = req.files.map(file => ({
-      name: file.originalname,
-      path: path.relative(MEDIA_DIR, file.path).replace(/\\/g, '/'),
-      url: `/media/${path.relative(MEDIA_DIR, file.path).replace(/\\/g, '/')}`
-    }));
+    if (!req.files || req.files.length === 0) {
+      console.log('🔥 SERVER: No files in request');
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    console.log('🔥 SERVER: Processing', req.files.length, 'files');
+    const files = req.files.map(file => {
+      console.log('🔥 SERVER: File:', file.originalname, 'saved to:', file.path);
+      return {
+        name: file.originalname,
+        path: path.relative(MEDIA_DIR, file.path).replace(/\\/g, '/'),
+        url: `/media/${path.relative(MEDIA_DIR, file.path).replace(/\\/g, '/')}`
+      };
+    });
+
+    console.log('🔥 SERVER: Responding with files:', files);
     res.json({ success: true, files });
   } catch (error) {
+    console.error('🔥 SERVER: Upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });
