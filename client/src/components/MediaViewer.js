@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FaTimes, FaPlay, FaPause, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaTimes, FaPlay, FaPause, FaChevronLeft, FaChevronRight, FaExpand, FaCompress } from 'react-icons/fa';
 
 const MediaViewer = ({ 
   media, 
@@ -10,6 +10,7 @@ const MediaViewer = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(media.index);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   const currentMedia = media.allFiles[currentIndex];
 
@@ -37,6 +38,11 @@ const MediaViewer = ({
           e.preventDefault();
           onToggleSlideshow();
           break;
+        case 'f':
+        case 'F':
+          e.preventDefault();
+          toggleFullScreen();
+          break;
         default:
           break;
       }
@@ -63,6 +69,32 @@ const MediaViewer = ({
   const handleVideoPause = () => {
     setIsVideoPlaying(false);
   };
+
+  const toggleFullScreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullScreen(true);
+      }).catch(err => {
+        console.log('Error attempting to enable fullscreen:', err);
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullScreen(false);
+      }).catch(err => {
+        console.log('Error attempting to exit fullscreen:', err);
+      });
+    }
+  }, []);
+
+  // Listen for fullscreen changes (user pressing F11 or Esc)
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+  }, []);
 
   return (
     <div className="modal" onClick={onClose}>
@@ -100,6 +132,11 @@ const MediaViewer = ({
             </button>
           )}
           
+          <button className="btn" onClick={toggleFullScreen}>
+            {isFullScreen ? <FaCompress /> : <FaExpand />}
+            {isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
+          </button>
+
           <button className="btn" onClick={nextMedia}>
             Next <FaChevronRight />
           </button>
