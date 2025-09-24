@@ -120,26 +120,33 @@ const MediaViewer = ({
           />
         )}
 
-        <div className="modal-controls">
-          <button className="btn" onClick={prevMedia}>
-            <FaChevronLeft /> Previous
-          </button>
-          
-          {currentMedia.type === 'image' && (
-            <button className="btn" onClick={onToggleSlideshow}>
-              {slideshowActive ? <FaPause /> : <FaPlay />}
-              {slideshowActive ? 'Pause' : 'Slideshow'}
+        <div className={`modal-controls ${isFullScreen ? 'fullscreen-minimal' : ''}`}>
+          {!isFullScreen ? (
+            <>
+              <button className="btn" onClick={prevMedia}>
+                <FaChevronLeft /> Previous
+              </button>
+
+              {currentMedia.type === 'image' && (
+                <button className="btn" onClick={onToggleSlideshow}>
+                  {slideshowActive ? <FaPause /> : <FaPlay />}
+                  {slideshowActive ? 'Pause' : 'Slideshow'}
+                </button>
+              )}
+
+              <button className="btn" onClick={toggleFullScreen}>
+                <FaExpand /> Fullscreen
+              </button>
+
+              <button className="btn" onClick={nextMedia}>
+                Next <FaChevronRight />
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-minimal" onClick={toggleFullScreen}>
+              <FaCompress /> Exit
             </button>
           )}
-          
-          <button className="btn" onClick={toggleFullScreen}>
-            {isFullScreen ? <FaCompress /> : <FaExpand />}
-            {isFullScreen ? 'Exit Fullscreen' : 'Fullscreen'}
-          </button>
-
-          <button className="btn" onClick={nextMedia}>
-            Next <FaChevronRight />
-          </button>
         </div>
 
         <div className="modal-info">

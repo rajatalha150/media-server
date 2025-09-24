@@ -311,6 +311,22 @@
     font-size: 1rem;
   }
 
+  .modal-controls.fullscreen-minimal {
+    bottom: 1rem;
+    right: 1rem;
+    left: auto;
+    transform: none;
+    background: transparent;
+    padding: 0;
+  }
+
+  .modal-controls.fullscreen-minimal .btn-minimal {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+  }
+
   .close-btn {
     top: 2rem;
     right: 2rem;
@@ -391,6 +407,16 @@
   }
 
   .modal-controls .btn {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .modal-controls.fullscreen-minimal {
+    bottom: 0.5rem;
+    right: 0.5rem;
+  }
+
+  .modal-controls.fullscreen-minimal .btn-minimal {
     padding: 0.5rem 0.75rem;
     font-size: 0.8rem;
   }
