@@ -142,15 +142,7 @@ const MediaViewer = ({
           </button>
         </div>
 
-        <div style={{
-          position: 'absolute',
-          bottom: '-100px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: '#ccc',
-          textAlign: 'center',
-          fontSize: '0.9rem'
-        }}>
+        <div className="modal-info">
           <div>{currentMedia.name}</div>
           <div>{currentIndex + 1} of {media.allFiles.length}</div>
           {slideshowActive && currentMedia.type === 'image' && (
